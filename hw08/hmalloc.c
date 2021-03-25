@@ -72,6 +72,30 @@ div_up(size_t xx, size_t yy)
 }
 
 void
+coalesce(free_block** head) {
+
+	free_block* prev = *head;
+	free_block* curr = prev->next;
+	while(curr) {
+		if((void*)prev + prev->size + sizeof(size_t) == (void*)curr) {
+		
+			prev->size = prev->size + curr->size + sizeof(size_t);
+			prev->next = curr->next;
+			curr=curr->next;
+	}
+		else {
+			prev = curr;
+			curr = curr->next;
+		}
+
+
+	}
+
+
+}
+
+
+void
 insert_free_block(void* address, long size)
 {
     free_block* next_block = free_list;
@@ -91,18 +115,21 @@ insert_free_block(void* address, long size)
     if (parent_block == NULL) //If it's NULL
     { 
         free_list = newly_freed;
-        parent_block = newly_freed;
-
+       // parent_block = newly_freed;
+	coalesce(&free_list);
+	/*
         if ((void*)parent_block + parent_block->size + sizeof(size_t) == (void*)next_block) // Coalesce if it happens to be that two blocks of freed memory are next to each other
         {
             parent_block->size = parent_block->size + next_block->size + sizeof(size_t); // Change the size to encompass both blocks
             parent_block->next = next_block->next; // Skip over the current next
         }
+	*/
     }
     else // Otherwise, make it a child of the last parent block that we saw
     {
-        parent_block->next = newly_freed;
-
+       parent_block->next = newly_freed;
+	coalesce(&free_list);
+	/*
         if ((void*)newly_freed + newly_freed->size + sizeof(size_t) == (void*)newly_freed->next)
         {
             newly_freed->size = newly_freed->size + newly_freed->next->size + sizeof(size_t);
@@ -114,6 +141,7 @@ insert_free_block(void* address, long size)
             parent_block->size = parent_block->size + newly_freed->size + sizeof(size_t); // Change the size to encompass both blocks
             parent_block->next = newly_freed->next; // Skip over the recently freed memory next
         }
+	*/
     }
 }
 
@@ -144,20 +172,14 @@ hmalloc(size_t size)
                     parent_block->next = curr_block->next;
                 }
 
-                if (size_of_remainder >= sizeof(free_block)) // Have we got enough space for another free_block?
+               if (size_of_remainder > sizeof(free_block)) // Have we got enough space for another free_block?
                 {
                     // We add back whatever wasn't allocated as a new block
-                    void* address = (void*)curr_block + size;
-                    insert_free_block(address, size_of_remainder - sizeof(size_t));
+                 void* address = (void*)curr_block + size;
+                   insert_free_block(address, size_of_remainder);
                 }
-                // else
-                // {
-                //     void* address = (void*)curr_block + size;
-                //     if (address + size_of_remainder == (void*)curr_block->next)
-                //     {
-                //         insert_free_block(address, size_of_remainder - sizeof(size_t));
-                //     }
-                // }
+	
+
 
                 stats.chunks_allocated++;
 
