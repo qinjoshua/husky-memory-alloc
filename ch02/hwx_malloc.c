@@ -199,6 +199,70 @@ xfree(void* ptr)
 void*
 xrealloc(void* prev, size_t bytes)
 {
-    // TODO: write realloc
+    free_block* old = (free_block*)(prev - sizeof(size_t));
+    void* after = xrealloc_extend(old, bytes);
+
+    if (xrealloc != NULL) {
+        return (void*)xrealloc_extend + sizeof(size_t);
+    }
+    else
+    {
+        return xrealloc_new(old, bytes);
+    }
+
     return 0;
+}
+
+free_block*
+xrealloc_extend(free_block* prev, size_t bytes)
+{
+    void* address = (void*)prev + bytes + sizeof(size_t);
+
+    free_block* curr_block = free_list;
+    free_block* parent = NULL;
+
+    while (curr_block->next != NULL && (void*)curr_block <= address)
+    {
+        if ((void*)curr_block == address) // We're at the desired address
+        {
+            long needed_size = bytes - prev->size;
+            if (needed_size <= curr_block->size) // The size of our current block is greater than equal what we need
+            {
+                // Remove the block from our free_list
+                if (parent == NULL)
+                {
+                    free_list = curr_block->next;
+                }
+                else
+                {
+                    parent->next = curr_block->next;
+                }
+
+                prev->size = prev->size + curr_block->size;
+
+                void* address = (void*)curr_block + needed_size;
+                insert_free_block(address, curr_block->size - needed_size); // TODO check this for correctness
+
+                return prev;
+            }
+            else // We've arrived at the address, but the size is insufficient. Might as well break and save some constant runtime
+            {
+                break;
+            }
+        }
+        parent = curr_block;
+        curr_block = curr_block->next;
+    }
+    return NULL;
+}
+
+void*
+xrealloc_new(free_block* prev, size_t bytes)
+{
+    free_block* new_mem = (free_block*)(xmalloc(bytes) - sizeof(size_t));
+    *new_mem = *prev;
+    new_mem->size = bytes;
+    xfree(prev);
+
+    return (void*)new_mem + sizeof(size_t);
 }
