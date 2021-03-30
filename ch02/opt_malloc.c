@@ -43,7 +43,7 @@ static const long POSSIBLE_BLOCK_SIZES[] = {4,   8,   16,   24,   32,   48,
 void unlock_arena(int arena_id) {
 
   ARENA_ID = -1;
-  arenas[arena_id]->used = 0;
+  arenas[arena_id].used = 0;
 }
 long get_arena_id() {
   if(ARENA_ID == -1 || arenas[ARENA_ID]->used ) {
@@ -52,7 +52,7 @@ long get_arena_id() {
 
     for(int ii = 0; ii < NUM_ARENAS; ii++) {
 
-        arena* curr_arena = arenas[ii];
+        arena* curr_arena = &arenas[ii];
         if(curr_arena->used == 0) {
           ARENA_ID = ii;
           curr_arena->used = 1;
@@ -235,7 +235,7 @@ void* xmalloc(size_t bytes) {
   long index = bucket_index(bytes);
   size_t block_size = block_size_at_index(index);
 
-  bucket** buckets = arenas[arena_id]->buckets;
+  bucket** buckets = arenas[arena_id].buckets;
     if (buckets[index] == NULL)  // see if magic number is there or not?
     {
     // getnewbucket inits a new bucket
