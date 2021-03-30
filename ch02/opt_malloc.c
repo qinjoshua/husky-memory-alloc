@@ -80,7 +80,7 @@ void initialize_arenas() {
   arenas = mmap(NULL, NUM_ARENAS*sizeof(bucket**), PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, 0,0);
   
   for(int ii = 0; ii < NUM_ARENAS; ii++) {
-    arenas[ii] = *(arena*)initialize_buckets();
+    arenas[ii].buckets = *(buckets**)initialize_buckets();
   }
 }
 
@@ -235,7 +235,7 @@ void* xmalloc(size_t bytes) {
   long index = bucket_index(bytes);
   size_t block_size = block_size_at_index(index);
 
-  bucket** buckets = &arenas[arena_id].buckets;
+  bucket** buckets = arenas[arena_id].buckets;
   assert(buckets != NULL);
   
   if (buckets[index] == NULL)  // see if magic number is there or not?
