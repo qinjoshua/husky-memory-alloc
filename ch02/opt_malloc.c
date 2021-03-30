@@ -253,8 +253,8 @@ void* xmalloc(size_t bytes) {
 }
 
 void xfree(void* ptr) {
-  // long address = *(long*)ptr;
-  void* pageStart = (void*) (ptr - ptr % PAGE_SIZE);
+  uint64_t address = (uint64_t)ptr;
+  void* pageStart = (void*) (address - (address % PAGE_SIZE));
 
   // If we cast it to a long, does it have that magic number?
   while (*(long*)pageStart != MAGIC_NUMBER) {
@@ -331,8 +331,8 @@ void xfree(void* ptr) {
 
 void* xrealloc(void* prev, size_t bytes) {
   // TODO: write an optimized realloc
-  //long address = *(long*)prev;
-  void* pageStart = (void*) (prev - (prev % PAGE_SIZE));
+  uint64_t address = (uint64_t)prev;
+  void* pageStart = (void*) (address - (address % PAGE_SIZE));
 
   // If we cast it to a long, does it have that magic number?
   while (*(long*)pageStart != MAGIC_NUMBER) {
