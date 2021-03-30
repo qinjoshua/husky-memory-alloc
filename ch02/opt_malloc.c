@@ -214,7 +214,7 @@ void* get_block(bucket* bb) {
 
 void* xmalloc(size_t bytes) {
 
-  if(bytes > PAGE_SIZE) {
+  if(bytes > 3072) {
 
     long pages_needed = div_up(bytes, PAGE_SIZE);
     return mmap(NULL, pages_needed * PAGE_SIZE, PROT_READ | PROT_WRITE,
