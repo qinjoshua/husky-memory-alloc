@@ -272,5 +272,23 @@ void xfree(void* ptr) {
 
 void* xrealloc(void* prev, size_t bytes) {
   // TODO: write an optimized realloc
-  return 0;
+  long address = *(long*)prev;
+  void* pageStart = (void*) (address - address % PAGE_SIZE);
+
+  // If we cast it to a long, does it have that magic number?
+  while (*(long*)pageStart != MAGIC_NUMBER) {
+    pageStart -= PAGE_SIZE;
+  }
+
+  // TODO all of this needs to be fixed!
+
+  // Pointer arithmetic to free it in our bytemap
+  bucket* bb = (bucket*)pageStart;
+
+
+  void* new_ptr = xmalloc(bytes);
+
+  memcpy(new_ptr, prev, bb->block_size);
+
+  return new_ptr;
 }
