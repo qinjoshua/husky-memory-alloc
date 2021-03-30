@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/mman.h>
+#include <string.h>
 
 #include "xmalloc.h"
 
@@ -11,6 +12,7 @@ static const long MAGIC_NUMBER = 720720720817817817;
 
 typedef struct bucket {
   long magic_number;
+  long arena_id;
   size_t block_size;
   size_t bucket_size;
   struct bucket* prev;
@@ -22,19 +24,34 @@ static const size_t PAGE_SIZE = 4096;
 static const size_t BYTEMAP_SIZE = 128;
 
 
-static bucket** buckets = 0;
+// static bucket** buckets = 0;
+
+static int NUM_ARENAS = 4;
+static bucket** arenas = 0;
 static int POSSIBLE_BLOCK_SIZES_LEN = 18;
 static int MAX_BLOCK_SIZE = 3072;
 static const long POSSIBLE_BLOCK_SIZES[] = {4,   8,   16,   24,   32,   48,
                                             64,  96,  128,  192,  256,  384,
                                             512, 768, 1024, 1536, 2048, 3072};
 
-void initialize_buckets() {
-  buckets = mmap(NULL,
+
+long get_arena_id() {
+
+  return pthread_self() % NUM_ARENAS;
+
+
+}
+void* initialize_buckets() {
+  return mmap(NULL,
                  PAGE_SIZE,  // TODO?sizeof(bucket*) * POSSIBLE_BLOCK_SIZES_LEN
                  PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, 0, 0);
 }
-
+void initialize_arenas() {
+  arenas = mmap(NULL, NUM_ARENAS*sizeof(bucket**), PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, 0,0);
+  for(int ii = 0; ii < NUM_ARENAS; ii++) {
+    arenas[ii] = initialize_buckets();
+  }
+}
 
 static
 size_t
@@ -173,24 +190,32 @@ void* xmalloc(size_t bytes) {
     MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
 
   }
+  else {
+    if(arenas == NULL) {
+      initialize_arenas();
 
-  if (buckets == NULL) {
-    initialize_buckets();
-  }
+    }
+    // if (buckets == NULL) {
+    //   initialize_buckets();
+    // }
 
   // This is the index in the buckets array that our free memory should be at
+  long arena_id = get_arena_id();
   long index = bucket_index(bytes);
   size_t block_size = block_size_at_index(index);
 
-  if (buckets[index] == NULL)  // see if magic number is there or not?
-  {
+    bucket** buckets = arenas[arena_id];
+    if (buckets[index] == NULL)  // see if magic number is there or not?
+    {
     // getnewbucket inits a new bucket
-    buckets[index] = get_new_bucket(block_size, NULL, NULL);
+      buckets[index] = get_new_bucket(block_size, NULL, NULL);
   }
 
   void* block = get_block(buckets[index]);
 
   return block;
+
+  }
 }
 
 void xfree(void* ptr) {
@@ -272,5 +297,23 @@ void xfree(void* ptr) {
 
 void* xrealloc(void* prev, size_t bytes) {
   // TODO: write an optimized realloc
-  return 0;
+  long address = *(long*)prev;
+  void* pageStart = (void*) (address - address % PAGE_SIZE);
+
+  // If we cast it to a long, does it have that magic number?
+  while (*(long*)pageStart != MAGIC_NUMBER) {
+    pageStart -= PAGE_SIZE;
+  }
+
+  // TODO all of this needs to be fixed!
+
+  // Pointer arithmetic to free it in our bytemap
+  bucket* bb = (bucket*)pageStart;
+
+
+  void* new_ptr = xmalloc(bytes);
+
+  memcpy(new_ptr, prev, bb->block_size);
+
+  return new_ptr;
 }
