@@ -46,7 +46,7 @@ void unlock_arena(int arena_id) {
   arenas[arena_id].used = 0;
 }
 long get_arena_id() {
-  if(ARENA_ID == -1 || arenas[ARENA_ID]->used ) {
+  if(ARENA_ID == -1 || arenas[ARENA_ID].used ) {
 
     //find an open arena 
 
@@ -56,17 +56,17 @@ long get_arena_id() {
         if(curr_arena->used == 0) {
           ARENA_ID = ii;
           curr_arena->used = 1;
-          return ARENA_ID
+          return ARENA_ID;
         }
 
   
     }
     
 }
-else {
-  return ARENA_ID;
 
-}
+return ARENA_ID;
+
+
 
 
 
@@ -80,7 +80,7 @@ void initialize_arenas() {
   arenas = mmap(NULL, NUM_ARENAS*sizeof(bucket**), PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, 0,0);
   
   for(int ii = 0; ii < NUM_ARENAS; ii++) {
-    arenas[ii] = (arena*)initialize_buckets();
+    arenas[ii] = (arena)initialize_buckets();
   }
 }
 
