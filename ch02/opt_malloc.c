@@ -20,12 +20,10 @@ typedef struct bucket {
 } bucket;
 
 
-typdef struct arena {
+typedef struct arena {
   bucket** buckets;
   int used;
-  pid_t
-
-}arena;
+} arena;
 
 static arena* arenas;
 static const size_t PAGE_SIZE = 4096;
