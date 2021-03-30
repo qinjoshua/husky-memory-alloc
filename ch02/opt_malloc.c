@@ -74,7 +74,7 @@ return ARENA_ID;
 void* initialize_buckets() {
   return mmap(NULL,
                  PAGE_SIZE,  // TODO?sizeof(bucket*) * POSSIBLE_BLOCK_SIZES_LEN
-                 PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, 0, 0);
+                 PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, 0, 0);
 }
 void initialize_arenas() {
   arenas = mmap(NULL, NUM_ARENAS*sizeof(bucket**), PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, 0,0);
