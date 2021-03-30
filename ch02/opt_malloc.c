@@ -35,6 +35,23 @@ void initialize_buckets() {
                  PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, 0, 0);
 }
 
+
+static
+size_t
+div_up(size_t xx, size_t yy)
+{
+    // This is useful to calculate # of pages
+    // for large allocations.
+    size_t zz = xx / yy;
+
+    if (zz * yy == xx) {
+        return zz;
+    }
+    else {
+        return zz + 1;
+    }
+}
+
 long block_size_at_index(long index) {
   assert(index < POSSIBLE_BLOCK_SIZES_LEN);
   return POSSIBLE_BLOCK_SIZES[index];
@@ -148,6 +165,15 @@ void* get_block(bucket* bb) {
 }
 
 void* xmalloc(size_t bytes) {
+
+  if(bytes > PAGE_SIZE) {
+
+    long pages_needed = div_up(bytes, PAGE_SIZE);
+    return mmap(NULL, pages_needed * PAGE_SIZE, PROT_READ | PROT_WRITE,
+    MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
+
+  }
+
   if (buckets == NULL) {
     initialize_buckets();
   }
