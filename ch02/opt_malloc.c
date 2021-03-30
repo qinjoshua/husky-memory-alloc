@@ -3,6 +3,7 @@
 #include <pthread.h>
 #include <assert.h>
 #include <stdio.h>
+#include <stdint.h>
 
 #include "xmalloc.h"
 
@@ -31,9 +32,10 @@ static const long POSSIBLE_BLOCK_SIZES[] = {4, 8, 16, 24, 32, 48, 64, 96, 128, 1
 void
 initialize_buckets()
 {
+
     buckets = mmap(
             NULL,
-            PAGE_SIZE,
+            PAGE_SIZE, //TODO?sizeof(bucket*) * POSSIBLE_BLOCK_SIZES_LEN
             PROT_READ|PROT_WRITE,
             MAP_ANON|MAP_PRIVATE,
             0, 0);
@@ -60,7 +62,7 @@ bucket_index(size_t bytes)
         }
     }
 
-    return 0;
+    return -1;
 }
 
 bucket*
@@ -68,20 +70,19 @@ get_new_bucket(size_t block_size, bucket* prev, bucket* next)
 {
     int numPages = 1;
     const float WASTE_THRESHOLD = 0.125;
-    //const int PAGE_MAP_LIMIT;
     long bucketSize = numPages * PAGE_SIZE;
 
     // This one finds how many pages we need. We calculate the overall bucketsize - overhead and see if that exceeds
     // the waste threshold
-    while (bucketSize - sizeof(bucket) - BYTEMAP_SIZE > WASTE_THRESHOLD * bucketSize)
+    while ( (bucketSize - sizeof(bucket) - BYTEMAP_SIZE) % block_size  > WASTE_THRESHOLD * bucketSize)
     {
-        numPages++;
+        numPages++;  
         bucketSize = numPages * PAGE_SIZE;
     }
 
     bucket* newBucket = mmap(
             NULL,
-            PAGE_SIZE,
+            bucketSize, //shouldnt this be bucket size
             PROT_READ|PROT_WRITE,
             MAP_ANON|MAP_PRIVATE,
             0, 0);
@@ -93,14 +94,15 @@ get_new_bucket(size_t block_size, bucket* prev, bucket* next)
     newBucket->next = next;
 
     // This is where our bitmap goes
-    long numBlocks = (bucketSize - sizeof(bucket) - BYTEMAP_SIZE) / block_size;
-    assert(numBlocks <= BYTEMAP_SIZE);
-    for (int ii = 0; ii < numBlocks; ii+=sizeof(long) * 8) // TODO logic here needs to be clarified!
-    {
-        // We set all of the bytes here to zero, indicating that they are free
-        void* blockPointer = (void*)newBucket + sizeof(bucket) + (ii / 8);
-        *(uint32_t*)blockPointer = 0;
-    }
+    // long numBlocks = (bucketSize - sizeof(bucket) - BYTEMAP_SIZE) / block_size;
+    // assert(numBlocks <= BYTEMAP_SIZE);
+    // for (int ii = 0; ii < numBlocks; ii+=sizeof(long) * 8) // TODO logic here needs to be clarified!
+    // {
+    //     // We set all of the bytes here to zero, indicating that they are free
+    //     void* blockPointer = (void*)newBucket + sizeof(bucket) + (ii / 8);
+    //     *(uint32_t*)blockPointer = 0;
+    // }
+    //TODO memset
 
     return newBucket;
 }
@@ -120,9 +122,12 @@ get_block(bucket* bb)
     // multiplied by the number of bits in a byte, which is 8. 
     for (int ii = 0; ii < numBlocks; ii+=sizeof(uint32_t) * 8) // TODO logic here needs to be certain!
     {
-        // Our blockPointer points to the bucket plus the overhead, plus outer loop index divided by the size of a byte
+        //ii iterates over bytes, jj iterates over bits
+
+        // Our bytePointer points to the bucket plus the overhead, plus outer loop index divided by the size of a byte
         // (because to the system the size 1 = 1 byte)
-        void* blockPointer = (void*)bb + sizeof(bucket) + (ii / 8);
+
+        void* bytePointer = (void*)bb + sizeof(bucket) + (ii / 8);
         
         // This flag is going to be used later to set memory to allocated in the loop
         uint32_t flag = 1;
@@ -131,9 +136,9 @@ get_block(bucket* bb)
         for (int jj = 0; jj < 8 * sizeof(uint32_t); jj++)
         {
             // For each jj, we get value of the bit in our integer and see if it's free.
-            if (get_bit(*(uint32_t*)blockPointer, jj) == 0)
+            if (get_bit(*(uint32_t*)bytePointer, jj) == 0)
             {
-                *(uint32_t*)blockPointer = jj | flag; // Sets the flag at the jj position of our blockpointer to 1
+                *(uint32_t*)bytePointer = jj | flag; // Sets the flag at the jj position of our blockpointer to 1
                 return (void*)bb + sizeof(bucket) + BYTEMAP_SIZE + ((ii + jj) * bb->block_size); // this should HOPEFULLY return the correct memory address
             }
             flag = flag << 1; // Left-shift the flag so that it can be set at the next position
@@ -168,8 +173,9 @@ xmalloc(size_t bytes)
     long index = bucket_index(bytes);
     size_t block_size = block_size_at_index(index);
 
-    if (buckets[index] == NULL)
+    if (buckets[index] == NULL)// see if magic number is there or not?
     {
+        //getnewbucket inits a new bucket
         buckets[index] = get_new_bucket(block_size, NULL, NULL);
     }
 
@@ -195,23 +201,63 @@ xfree(void* ptr)
     bucket* bb = (bucket*)pageStart;
 
     // The block number of this block
-    int blockNo = ((ptr - (pageStart + sizeof(bucket) + BYTEMAP_SIZE)) / bb->block_size;
+    int blockNo = (ptr - (pageStart + sizeof(bucket) + BYTEMAP_SIZE)) / bb->block_size;
 
     // This is the offset from the page start + header to get to the unsigned 32 bit integer that contains the flag for the memory
-    int bitmapAddressOffset =  blockNo / 8 / sizeof(uint32_t));
+    int bitmapAddressOffset =  blockNo / 8 /sizeof(uint32_t);
     
     // This is the address of the unsigned 32 bit integer that contains the flag for the memory
-    void* bitmapAddress = pageStart + sizeof(bucket) + BYTEMAP_SIZE +  // This is bucket overhead
+    void* bitmapAddress = pageStart + sizeof(bucket) +  // This is bucket overhead
         bitmapAddressOffset;
 
     // This gives us the exact bit offset within a 32 bit unsigned integer that our block is located
-    int internalOffset = blockNo % bitmapAddressOffset;
+    int internalOffset = blockNo  % (bitmapAddressOffset * 8 *sizeof(uint32_t));
 
     uint32_t flag = 1 << internalOffset;
     *(uint32_t*)bitmapAddress = *(uint32_t*)bitmapAddress ^ flag;
 
 	// TODO Check to see if we should munmap this page
-    
+
+
+
+    //num_blocks 
+
+
+
+    long numBlocks = (bb->bucket_size - sizeof(bucket) - BYTEMAP_SIZE) / bb->block_size;
+
+    int any_left = 0;
+
+  for (int ii = 0; ii < numBlocks; ii+=sizeof(uint32_t) * 8) // TODO logic here needs to be certain!
+    {
+        //ii iterates over bytes, jj iterates over bits
+
+        // Our bytePointer points to the bucket plus the overhead, plus outer loop index divided by the size of a byte
+        // (because to the system the size 1 = 1 byte)
+
+        void* bytePointer = (void*)bb + sizeof(bucket) + (ii / 8);
+        
+        // This flag is going to be used later to set memory to allocated in the loop
+        uint32_t flag = 1;
+
+        // Our inner for loop goes through each individual bit in an unsigned 32 bit integer
+        for (int jj = 0; jj < 8 * sizeof(uint32_t); jj++)
+        {
+            // For each jj, we get value of the bit in our integer and see if it's free.
+            if (get_bit(*(uint32_t*)bytePointer, jj) == 1)
+            {
+                any_left = 1;
+                break;
+            }
+            flag = flag << 1; // Left-shift the flag so that it can be set at the next position
+        }
+    }
+
+
+    if(!any_left) {
+        munmap(pageStart, bb->bucket_size);
+    }
+
 }
 
 void*
