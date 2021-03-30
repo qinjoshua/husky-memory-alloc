@@ -63,7 +63,7 @@ long bucket_index(size_t bytes) {
 
   for (int ii = 0; ii < POSSIBLE_BLOCK_SIZES_LEN; ii++) {
     if (POSSIBLE_BLOCK_SIZES[ii] > bytes) {
-      return POSSIBLE_BLOCK_SIZES[ii];
+      return ii;
     }
   }
 
