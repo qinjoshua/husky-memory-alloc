@@ -12,7 +12,6 @@ static const long MAGIC_NUMBER = 720720720817817817;
 
 typedef struct bucket {
   long magic_number;
-  long arena_id;
   size_t block_size;
   size_t bucket_size;
   struct bucket* prev;
@@ -20,14 +19,22 @@ typedef struct bucket {
   // By the way, the bytemap is going to be 128 bytes.
 } bucket;
 
+
+typdef struct arena {
+  bucket** buckets;
+  int used;
+  pid_t
+
+}arena;
+
+static arena* arenas;
 static const size_t PAGE_SIZE = 4096;
 static const size_t BYTEMAP_SIZE = 128;
 
-
-// static bucket** buckets = 0;
+static __thread int ARENA_ID = -1;
 
 static int NUM_ARENAS = 4;
-static bucket** arenas = 0;
+
 static int POSSIBLE_BLOCK_SIZES_LEN = 18;
 static int MAX_BLOCK_SIZE = 3072;
 static const long POSSIBLE_BLOCK_SIZES[] = {4,   8,   16,   24,   32,   48,
@@ -35,9 +42,34 @@ static const long POSSIBLE_BLOCK_SIZES[] = {4,   8,   16,   24,   32,   48,
                                             512, 768, 1024, 1536, 2048, 3072};
 
 
-long get_arena_id() {
+void unlock_arena(int arena_id) {
 
-  return pthread_self() % NUM_ARENAS;
+  ARENA_ID = -1;
+  arenas[arena_id]->used = 0;
+}
+long get_arena_id() {
+  if(ARENA_ID == -1 || arenas[ARENA_ID]->used ) {
+
+    //find an open arena 
+
+    for(int ii = 0; ii < NUM_ARENAS; ii++) {
+
+        arena* curr_arena = arenas[ii];
+        if(curr_arena->used == 0) {
+          ARENA_ID = ii;
+          curr_arena->used = 1;
+          return ARENA_ID
+        }
+
+  
+    }
+    
+}
+else {
+  return ARENA_ID;
+
+}
+
 
 
 }
@@ -48,8 +80,9 @@ void* initialize_buckets() {
 }
 void initialize_arenas() {
   arenas = mmap(NULL, NUM_ARENAS*sizeof(bucket**), PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, 0,0);
+  
   for(int ii = 0; ii < NUM_ARENAS; ii++) {
-    arenas[ii] = (bucket**)initialize_buckets();
+    arenas[ii] = (arena*)initialize_buckets();
   }
 }
 
@@ -204,7 +237,7 @@ void* xmalloc(size_t bytes) {
   long index = bucket_index(bytes);
   size_t block_size = block_size_at_index(index);
 
-    bucket** buckets = arenas[arena_id];
+  bucket** buckets = arenas[arena_id]->buckets;
     if (buckets[index] == NULL)  // see if magic number is there or not?
     {
     // getnewbucket inits a new bucket
@@ -213,6 +246,7 @@ void* xmalloc(size_t bytes) {
 
   void* block = get_block(buckets[index]);
 
+  unlock_arena(arena_id);
   return block;
 
   }
