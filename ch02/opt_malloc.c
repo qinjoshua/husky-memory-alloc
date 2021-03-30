@@ -236,7 +236,9 @@ void* xmalloc(size_t bytes) {
   size_t block_size = block_size_at_index(index);
 
   bucket** buckets = arenas[arena_id].buckets;
-    if (buckets[index] == NULL)  // see if magic number is there or not?
+  assert(buckets != NULL);
+  
+  if (buckets[index] == NULL)  // see if magic number is there or not?
     {
     // getnewbucket inits a new bucket
       buckets[index] = get_new_bucket(block_size, NULL, NULL);
