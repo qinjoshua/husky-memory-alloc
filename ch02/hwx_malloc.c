@@ -19,6 +19,14 @@
 //    provided xv6 allocator.
 //  - Implement the "realloc" function for this allocator.
 
+typedef struct xm_stats {
+    long pages_mapped;
+    long pages_unmapped;
+    long chunks_allocated;
+    long chunks_freed;
+    long free_length;
+} xm_stats;
+
 typedef struct free_block {
     long size;
     struct free_block* next;
@@ -27,7 +35,7 @@ typedef struct free_block {
 const size_t PAGE_SIZE = 4096;
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-static hm_stats stats; // This initializes the stats to 0.
+static xm_stats stats; // This initializes the stats to 0.
 static free_block* free_list = 0;
 
 static
@@ -97,6 +105,7 @@ xmalloc(size_t bytes)
 {
     pthread_mutex_lock(&lock);
 
+    size_t size = bytes;
     size += sizeof(size_t);
 
     if (size < PAGE_SIZE) // Is it small enough that it'd be on our free list?
@@ -156,7 +165,7 @@ xmalloc(size_t bytes)
         insert_free_block(page, PAGE_SIZE - sizeof(long));
 
         pthread_mutex_unlock(&lock);
-        return hmalloc(size - sizeof(size_t));
+        return xmalloc(size - sizeof(size_t));
     }
     else
     {
@@ -182,7 +191,7 @@ xfree(void* ptr)
 {
     pthread_mutex_lock(&lock);
     stats.chunks_freed += 1;
-    free_block* block = (free_block*)(item - sizeof(size_t));
+    free_block* block = (free_block*)(ptr - sizeof(size_t));
 
     if (block->size < PAGE_SIZE)
     {
@@ -194,23 +203,6 @@ xfree(void* ptr)
         munmap(block, block->size);
     }
     pthread_mutex_unlock(&lock);
-}
-
-void*
-xrealloc(void* prev, size_t bytes)
-{
-    free_block* old = (free_block*)(prev - sizeof(size_t));
-    void* after = xrealloc_extend(old, bytes);
-
-    if (xrealloc != NULL) {
-        return (void*)xrealloc_extend + sizeof(size_t);
-    }
-    else
-    {
-        return xrealloc_new(old, bytes);
-    }
-
-    return 0;
 }
 
 free_block*
@@ -265,4 +257,21 @@ xrealloc_new(free_block* prev, size_t bytes)
     xfree(prev);
 
     return (void*)new_mem + sizeof(size_t);
+}
+
+void*
+xrealloc(void* prev, size_t bytes)
+{
+    free_block* old = (free_block*)(prev - sizeof(size_t));
+    void* after = xrealloc_extend(old, bytes);
+
+    if (after != NULL) {
+        return (void*)after + sizeof(size_t);
+    }
+    else
+    {
+        return xrealloc_new(old, bytes);
+    }
+
+    return 0;
 }
