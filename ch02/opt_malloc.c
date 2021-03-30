@@ -21,8 +21,6 @@ typedef struct bucket {
 static const size_t PAGE_SIZE = 4096;
 static const size_t BYTEMAP_SIZE = 128;
 
-static const char FREE_MEM = 'f';
-static const char ALLOC_MEM = 'a';
 
 static bucket** buckets = 0;
 static int POSSIBLE_BLOCK_SIZES_LEN = 18;
@@ -170,7 +168,8 @@ void* xmalloc(size_t bytes) {
 }
 
 void xfree(void* ptr) {
-  void* pageStart = ptr - ptr % PAGE_SIZE;
+  long address = *(long*)ptr;
+  void* pageStart = (void*) (address - address % PAGE_SIZE);
 
   // If we cast it to a long, does it have that magic number?
   while (*(long*)pageStart != MAGIC_NUMBER) {
