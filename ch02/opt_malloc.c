@@ -13,6 +13,8 @@ typedef struct header {
 
 typedef struct bucket {
     header head;    
+    //bitmap
+    //page memory adress
 } bucket;
 
 const size_t PAGE_SIZE = 4096;
@@ -75,7 +77,20 @@ void*
 get_block(bucket bb)
 {
     // TODO Make this
-    return 0;
+    
+	//scan bitmap to find first open block
+	//use pointer arithmetic to return that block
+	//
+	int ii;
+	//while bitmap still has not been fully traversed and current value 
+	//is not empty, check next element in bitmap
+
+	
+	//size of each block in this bucket
+	size_t size = bb->head->size;
+	//the address of the 0th block 
+	size_t start;
+	return (void *)(start + (ii * size));
 }
 
 void*
