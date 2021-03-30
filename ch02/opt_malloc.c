@@ -49,7 +49,7 @@ void* initialize_buckets() {
 void initialize_arenas() {
   arenas = mmap(NULL, NUM_ARENAS*sizeof(bucket**), PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, 0,0);
   for(int ii = 0; ii < NUM_ARENAS; ii++) {
-    arenas[ii] = initialize_buckets();
+    arenas[ii] = (bucket**)initialize_buckets();
   }
 }
 
