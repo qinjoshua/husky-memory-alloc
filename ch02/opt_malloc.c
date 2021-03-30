@@ -1,11 +1,16 @@
 #include <stdlib.h>
 #include <sys/mman.h>
 #include <pthread.h>
+#include <assert.h>
 #include <stdio.h>
 
 #include "xmalloc.h"
 
+static const long MAGIC_NUMBER = 720720720817817817;
+
 typedef struct bucket {
+    long magic_number;
+    size_t block_size;
     size_t bucket_size;
     struct bucket* prev;
     struct bucket* next;
@@ -18,7 +23,7 @@ static const size_t BYTEMAP_SIZE = 128;
 static const char FREE_MEM = 'f';
 static const char ALLOC_MEM = 'a';
 
-static bucket* buckets = 0;
+static bucket** buckets = 0;
 static int POSSIBLE_BLOCK_SIZES_LEN = 18;
 static int MAX_BLOCK_SIZE = 3072;
 static const long POSSIBLE_BLOCK_SIZES[] = {4, 8, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512, 768, 1024, 1536, 2048, 3072};
@@ -32,17 +37,6 @@ initialize_buckets()
             PROT_READ|PROT_WRITE,
             MAP_ANON|MAP_PRIVATE,
             0, 0);
-}
-
-long
-pow(long base, long exponent)
-{
-    long result = 1;
-    for (int ii = 0; ii < exponent; ii++)
-    {
-        result *= base;
-    }
-    return result;
 }
 
 long
@@ -66,7 +60,7 @@ bucket_index(size_t bytes)
         }
     }
 
-    return NULL;
+    return 0;
 }
 
 bucket*
@@ -74,7 +68,7 @@ get_new_bucket(size_t block_size, bucket* prev, bucket* next)
 {
     int numPages = 1;
     const float WASTE_THRESHOLD = 0.125;
-    const int PAGE_MAP_LIMIT;
+    //const int PAGE_MAP_LIMIT;
     long bucketSize = numPages * PAGE_SIZE;
 
     // This one finds how many pages we need. We calculate the overall bucketsize - overhead and see if that exceeds
@@ -91,7 +85,9 @@ get_new_bucket(size_t block_size, bucket* prev, bucket* next)
             PROT_READ|PROT_WRITE,
             MAP_ANON|MAP_PRIVATE,
             0, 0);
-    
+
+    newBucket->magic_number = MAGIC_NUMBER;
+    newBucket->block_size = block_size;
     newBucket->bucket_size = bucketSize;
     newBucket->prev = prev;
     newBucket->next = next;
@@ -108,32 +104,32 @@ get_new_bucket(size_t block_size, bucket* prev, bucket* next)
 }
 
 void*
-get_block(size_t block_size, bucket* bb)
+get_block(bucket* bb)
 {
 	//while bitmap still has not been fully traversed and current value 
 	//is not empty, check next element in bitmap
-    long numBlocks = (bb->bucket_size - sizeof(bucket) - BYTEMAP_SIZE) / block_size;
+    long numBlocks = (bb->bucket_size - sizeof(bucket) - BYTEMAP_SIZE) / bb->block_size;
 	for (int ii = 0; ii < numBlocks; ii++)
     {
         char* byte = (char*)((void*)bb + sizeof(bucket) + ii);
         if (*byte == FREE_MEM)
         {
             *byte = ALLOC_MEM;
-            return (void*)bb + sizeof(bucket) + BYTEMAP_SIZE + (ii * block_size);
+            return (void*)bb + sizeof(bucket) + BYTEMAP_SIZE + (ii * bb->block_size);
         }
     }
 
     if (bb->next != NULL)
     {
-        return get_block(block_size, bb->next);
+        return get_block(bb->next);
     }
     else
     {
         // Get new bucket
-        bucket* newBucket = get_new_bucket(block_size, bb, 0);
+        bucket* newBucket = get_new_bucket(bb->block_size, bb, 0);
         bb->next = newBucket;
 
-        return get_block(block_size, newBucket);
+        return get_block(newBucket);
     }
 }
 
@@ -154,7 +150,7 @@ xmalloc(size_t bytes)
         buckets[index] = get_new_bucket(block_size, NULL, NULL);
     }
 
-    void* block = get_block(block_size, buckets[index]);
+    void* block = get_block(buckets[index]);
 
     return block;
 }
@@ -162,7 +158,22 @@ xmalloc(size_t bytes)
 void
 xfree(void* ptr)
 {
-    // TODO: write an optimized free
+    void* pageStart = ptr - ptr % PAGE_SIZE;
+    
+    // If we cast it to a long, does it have that magic number?
+    while (*(long*)pageStart != MAGIC_NUMBER)
+    {
+        pageStart -= PAGE_SIZE;
+    }
+
+    // Pointer arithmetic to free it in our bytemap
+    bucket* bb = (bucket*)pageStart;
+    void* bytemapAddress = pageStart + sizeof(bucket) + BYTEMAP_SIZE +
+        ((ptr - (pageStart + sizeof(bucket) + BYTEMAP_SIZE)) / bb->block_size);
+    *(char*)bytemapAddress = FREE_MEM;
+
+	// Check to see if we should munmap this page
+
 }
 
 void*
