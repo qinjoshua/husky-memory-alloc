@@ -92,7 +92,7 @@ get_new_bucket(size_t block_size, bucket* prev, bucket* next)
     newBucket->prev = prev;
     newBucket->next = next;
 
-    // This is where our bytemap goes
+    // This is where our bitmap goes
     long numBlocks = (bucketSize - sizeof(bucket) - BYTEMAP_SIZE) / block_size;
     assert(numBlocks <= BYTEMAP_SIZE);
     for (int ii = 0; ii < numBlocks; ii+=sizeof(long) * 8) // TODO logic here needs to be clarified!
@@ -193,12 +193,25 @@ xfree(void* ptr)
 
     // Pointer arithmetic to free it in our bytemap
     bucket* bb = (bucket*)pageStart;
-    void* bytemapAddress = pageStart + sizeof(bucket) + BYTEMAP_SIZE +
-        ((ptr - (pageStart + sizeof(bucket) + BYTEMAP_SIZE)) / bb->block_size);
-    *(char*)bytemapAddress = FREE_MEM;
 
-	// Check to see if we should munmap this page
-    //pageStart + sizeof(bucket);
+    // The block number of this block
+    int blockNo = ((ptr - (pageStart + sizeof(bucket) + BYTEMAP_SIZE)) / bb->block_size;
+
+    // This is the offset from the page start + header to get to the unsigned 32 bit integer that contains the flag for the memory
+    int bitmapAddressOffset =  blockNo / 8 / sizeof(uint32_t));
+    
+    // This is the address of the unsigned 32 bit integer that contains the flag for the memory
+    void* bitmapAddress = pageStart + sizeof(bucket) + BYTEMAP_SIZE +  // This is bucket overhead
+        bitmapAddressOffset;
+
+    // This gives us the exact bit offset within a 32 bit unsigned integer that our block is located
+    int internalOffset = blockNo % bitmapAddressOffset;
+
+    uint32_t flag = 1 << internalOffset;
+    *(uint32_t*)bitmapAddress = *(uint32_t*)bitmapAddress ^ flag;
+
+	// TODO Check to see if we should munmap this page
+    
 }
 
 void*
