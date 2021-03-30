@@ -57,6 +57,7 @@ div_up(size_t xx, size_t yy)
 void
 insert_free_block(void* address, long size)
 {
+    
     free_block* next_block = free_list;
     free_block* parent_block = NULL;
 
@@ -103,8 +104,6 @@ insert_free_block(void* address, long size)
 void*
 xmalloc(size_t bytes)
 {
-    pthread_mutex_lock(&lock);
-
     size_t size = bytes;
     size += sizeof(size_t);
 
@@ -133,12 +132,15 @@ xmalloc(size_t bytes)
                 {
                     // We add back whatever wasn't allocated as a new block
                     void* address = (void*)curr_block + size;
+                    pthread_mutex_lock(&lock);
                     insert_free_block(address, size_of_remainder);
+                    pthread_mutex_unlock(&lock);
                 }
                 else
                 {
                     stats.chunks_allocated++;
 
+                    pthread_mutex_lock(&lock);
                     curr_block->size = size - sizeof(size_t) + size_of_remainder;
                     pthread_mutex_unlock(&lock);
                     return (void*)curr_block + sizeof(size_t);
@@ -147,6 +149,7 @@ xmalloc(size_t bytes)
                 stats.chunks_allocated++;
 
                 // Return the allocated block
+                pthread_mutex_lock(&lock);
                 curr_block->size = size - sizeof(size_t);
                 pthread_mutex_unlock(&lock);
                 return (void*)curr_block + sizeof(size_t);
@@ -162,6 +165,7 @@ xmalloc(size_t bytes)
             0, 0);
         stats.pages_mapped++;
 
+        pthread_mutex_lock(&lock);
         insert_free_block(page, PAGE_SIZE - sizeof(long));
 
         pthread_mutex_unlock(&lock);
@@ -181,7 +185,6 @@ xmalloc(size_t bytes)
         stats.pages_mapped += pages_needed;
 
         ptr->size = size - sizeof(size_t);
-        pthread_mutex_unlock(&lock);
         return (void*)ptr + sizeof(size_t);
     }
 }
@@ -189,25 +192,28 @@ xmalloc(size_t bytes)
 void
 xfree(void* ptr)
 {
-    pthread_mutex_lock(&lock);
+    
     stats.chunks_freed += 1;
     free_block* block = (free_block*)(ptr - sizeof(size_t));
 
     if (block->size < PAGE_SIZE)
     {
+        pthread_mutex_lock(&lock);
         insert_free_block(block, block->size);
+        pthread_mutex_unlock(&lock);
     }
     else
     {
         stats.pages_unmapped += (long)div_up(block->size + sizeof(size_t), PAGE_SIZE);
         munmap(block, block->size);
     }
-    pthread_mutex_unlock(&lock);
+    
 }
 
 free_block*
 xrealloc_extend(free_block* prev, size_t bytes)
 {
+    pthread_mutex_lock(&lock);
     void* address = (void*)prev + bytes + sizeof(size_t);
 
     free_block* curr_block = free_list;
@@ -234,7 +240,7 @@ xrealloc_extend(free_block* prev, size_t bytes)
 
                 void* address = (void*)curr_block + needed_size;
                 insert_free_block(address, curr_block->size - needed_size); // TODO check this for correctness
-
+                pthread_mutex_unlock(&lock);
                 return prev;
             }
             else // We've arrived at the address, but the size is insufficient. Might as well break and save some constant runtime
@@ -245,6 +251,7 @@ xrealloc_extend(free_block* prev, size_t bytes)
         parent = curr_block;
         curr_block = curr_block->next;
     }
+    pthread_mutex_unlock(&lock);
     return NULL;
 }
 
