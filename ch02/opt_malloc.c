@@ -60,11 +60,11 @@ long get_arena_id() {
 
 void* initialize_buckets() {
 
-  long* rv = mmap(NULL,
+  void* rv = mmap(NULL,
                  PAGE_SIZE,  // TODO?sizeof(bucket*) * POSSIBLE_BLOCK_SIZES_LEN
                  PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, 0, 0);
-  assert(*rv != 0);
-  return (void*)rv;
+  assert(rv != NULL);
+  return rv;
 }
 
 void initialize_arenas() {
@@ -213,10 +213,10 @@ void* xmalloc(size_t bytes) {
 
   if(bytes > 3072) {
     long pages_needed = div_up(bytes, PAGE_SIZE);
-    long* rv = mmap(NULL, pages_needed * PAGE_SIZE, PROT_READ | PROT_WRITE,
+    void* rv = mmap(NULL, pages_needed * PAGE_SIZE, PROT_READ | PROT_WRITE,
       MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
-    assert(*rv != 0);
-    return (void*)rv;
+    assert(rv != NULL);
+    return rv;
   }
   else {
     if (arenas == NULL) {
