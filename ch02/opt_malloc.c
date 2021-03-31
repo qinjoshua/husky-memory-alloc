@@ -41,41 +41,31 @@ static const long POSSIBLE_BLOCK_SIZES[] = {4,   8,   16,   24,   32,   48,
 
 
 void unlock_arena(int arena_id) {
-
   ARENA_ID = -1;
   arenas[arena_id].used = 0;
 }
+
 long get_arena_id() {
   if(ARENA_ID == -1 || arenas[ARENA_ID].used ) {
-
     //find an open arena 
-
     for(int ii = 0; ii < NUM_ARENAS; ii++) {
-
-        arena* curr_arena = &arenas[ii];
-        if(curr_arena->used == 0) {
-          ARENA_ID = ii;
-          curr_arena->used = 1;
-          return ARENA_ID;
-        }
-
-  
+      arena* curr_arena = &arenas[ii];
+      if(curr_arena->used == 0) {
+        ARENA_ID = ii;
+        curr_arena->used = 1;
+        return ARENA_ID;
+      }
     }
-    
+  }
+  return ARENA_ID;
 }
 
-return ARENA_ID;
-
-
-
-
-
-}
 void* initialize_buckets() {
   return mmap(NULL,
                  PAGE_SIZE,  // TODO?sizeof(bucket*) * POSSIBLE_BLOCK_SIZES_LEN
                  PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, 0, 0);
 }
+
 void initialize_arenas() {
   arenas = mmap(NULL, NUM_ARENAS*sizeof(bucket**), PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, 0,0);
   
@@ -215,40 +205,36 @@ void* get_block(bucket* bb) {
 void* xmalloc(size_t bytes) {
 
   if(bytes > 3072) {
-
     long pages_needed = div_up(bytes, PAGE_SIZE);
     return mmap(NULL, pages_needed * PAGE_SIZE, PROT_READ | PROT_WRITE,
-    MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
-
+      MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
   }
   else {
-    if(arenas == NULL) {
+    if (arenas == NULL) {
       initialize_arenas();
-
     }
     // if (buckets == NULL) {
     //   initialize_buckets();
     // }
 
-  // This is the index in the buckets array that our free memory should be at
-  long arena_id = get_arena_id();
-  long index = bucket_index(bytes);
-  size_t block_size = block_size_at_index(index);
+    // This is the index in the arena and buckets array that our free memory should be at
+    long arena_id = get_arena_id();
+    long index = bucket_index(bytes);
+    size_t block_size = block_size_at_index(index);
 
-  bucket** buckets = arenas[arena_id].buckets;
-  assert(buckets != NULL);
-  
-  if (buckets[index] == NULL)  // see if magic number is there or not?
+    bucket** buckets = arenas[arena_id].buckets;
+    assert(buckets != NULL);
+    
+    if (buckets[index] == NULL)  // see if magic number is there or not?
     {
-    // getnewbucket inits a new bucket
-      buckets[index] = get_new_bucket(block_size, NULL, NULL);
-  }
+      // getnewbucket inits a new bucket
+        buckets[index] = get_new_bucket(block_size, NULL, NULL);
+    }
 
-  void* block = get_block(buckets[index]);
+    void* block = get_block(buckets[index]);
 
-  unlock_arena(arena_id);
-  return block;
-
+    unlock_arena(arena_id);
+    return block;
   }
 }
 
@@ -260,8 +246,6 @@ void xfree(void* ptr) {
   while (*(long*)pageStart != MAGIC_NUMBER) {
     pageStart -= PAGE_SIZE;
   }
-
-  // TODO all of this needs to be fixed!
 
   // Pointer arithmetic to free it in our bytemap
   bucket* bb = (bucket*)pageStart;
@@ -338,8 +322,6 @@ void* xrealloc(void* prev, size_t bytes) {
   while (*(long*)pageStart != MAGIC_NUMBER) {
     pageStart -= PAGE_SIZE;
   }
-
-  // TODO all of this needs to be fixed!
 
   // Pointer arithmetic to free it in our bytemap
   bucket* bb = (bucket*)pageStart;
