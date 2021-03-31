@@ -243,8 +243,10 @@ void xfree(void* ptr) {
   uint64_t address = (uint64_t)ptr;
   void* pageStart = (void*) (address - (address % PAGE_SIZE));
 
+  assert(*(long*)pageStart != 0);
   // If we cast it to a long, does it have that magic number?
   while (*(long*)pageStart != MAGIC_NUMBER) {
+      assert(*(long*)pageStart != 0);
     pageStart -= PAGE_SIZE;
   }
 
@@ -327,8 +329,11 @@ void* xrealloc(void* prev, size_t bytes) {
   uint64_t address = (uint64_t)prev;
   void* pageStart = (void*) (address - (address % PAGE_SIZE));
 
+  assert(*(long*)pageStart != 0);
+
   // If we cast it to a long, does it have that magic number?
   while (*(long*)pageStart != MAGIC_NUMBER) {
+      assert(*(long*)pageStart != 0);
     pageStart -= PAGE_SIZE;
   }
 
