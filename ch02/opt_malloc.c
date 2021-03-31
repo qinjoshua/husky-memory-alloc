@@ -153,7 +153,7 @@ int get_bit(uint32_t block, int k) {
 
 void* get_block(bucket* bb) {
   long numBlocks = (bb->bucket_size - sizeof(bucket) - BYTEMAP_SIZE) / bb->block_size;
-  assert(bb->bucket_size > sizeof(bucket) - BYTEMAP_SIZE);
+  assert(bb->bucket_size > sizeof(bucket) + BYTEMAP_SIZE);
   assert(numBlocks > 0);
 
   // There are two loops, an outer and an inner. The outer loop increments by
