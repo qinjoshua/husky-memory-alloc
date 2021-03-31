@@ -59,13 +59,17 @@ long get_arena_id() {
 }
 
 void* initialize_buckets() {
-  return mmap(NULL,
+
+  long rv = mmap(NULL,
                  PAGE_SIZE,  // TODO?sizeof(bucket*) * POSSIBLE_BLOCK_SIZES_LEN
                  PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, 0, 0);
+  assert(rv != 0);
+  return (void*)rv;
 }
 
 void initialize_arenas() {
   arenas = mmap(NULL, NUM_ARENAS*sizeof(arena*), PROT_READ|PROT_WRITE, MAP_ANON | MAP_SHARED, 0,0);
+  assert(arenas != NULL);
   
   pthread_mutex_lock(&lock);
   for(int ii = 0; ii < NUM_ARENAS; ii++) {
@@ -126,6 +130,7 @@ bucket* get_new_bucket(size_t block_size, bucket* prev, bucket* next) {
            bucketSize,  // shouldnt this be bucket size
            PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, 0, 0);
 
+  assert(newBucket != NULL);
   newBucket->magic_number = MAGIC_NUMBER;
   newBucket->block_size = block_size;
   newBucket->bucket_size = bucketSize;
@@ -192,6 +197,7 @@ void* get_block(bucket* bb) {
 
   // If code execution has reached here that means there was no free memory
 
+  
   if (bb->next != NULL) {
     return get_block(bb->next);
   } else {
@@ -207,8 +213,10 @@ void* xmalloc(size_t bytes) {
 
   if(bytes > 3072) {
     long pages_needed = div_up(bytes, PAGE_SIZE);
-    return mmap(NULL, pages_needed * PAGE_SIZE, PROT_READ | PROT_WRITE,
+    long rv = mmap(NULL, pages_needed * PAGE_SIZE, PROT_READ | PROT_WRITE,
       MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
+    assert(rv != 0);
+    return (void*)rv;
   }
   else {
     if (arenas == NULL) {
@@ -230,8 +238,10 @@ void* xmalloc(size_t bytes) {
     if (buckets[index] == NULL)  // see if magic number is there or not?
     {
       // getnewbucket inits a new bucket
+      //ini
         buckets[index] = get_new_bucket(block_size, NULL, NULL);
     }
+
 
     void* block = get_block(buckets[index]);
 
