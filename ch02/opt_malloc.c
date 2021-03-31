@@ -3,13 +3,13 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <sys/mman.h>
+#include <string.h>
 
 #include "xmalloc.h"
 
 #pragma GCC push_options
-#pragma GCC optimize("O0")
+#pragma GCC optimize ("O0")
 
 static const long MAGIC_NUMBER = 720720720817817817;
 
@@ -21,6 +21,7 @@ typedef struct bucket {
   struct bucket* next;
   // By the way, the bytemap is going to be 128 bytes.
 } bucket;
+
 
 typedef struct arena {
   bucket** buckets;
@@ -43,11 +44,12 @@ static const long POSSIBLE_BLOCK_SIZES[] = {4,   8,   16,   24,   32,   48,
                                             64,  96,  128,  192,  256,  384,
                                             512, 768, 1024, 1536, 2048, 3072};
 
+
 long get_arena_id() {
-  if (ARENA_ID == -1 || pthread_mutex_trylock(&(arenas[ARENA_ID].lock)) != 0) {
-    // find an open arena
-    for (int ii = 0; ii < NUM_ARENAS; ii++) {
-      if (pthread_mutex_trylock(&(arenas[ii].lock)) == 0) {
+  if(ARENA_ID == -1 || pthread_mutex_trylock(&(arenas[ARENA_ID].lock)) != 0) {
+    //find an open arena 
+    for(int ii = 0; ii < NUM_ARENAS; ii++) {
+      if(pthread_mutex_trylock(&(arenas[ii].lock)) == 0) {
         ARENA_ID = ii;
         return ARENA_ID;
       }
@@ -58,31 +60,34 @@ long get_arena_id() {
 
 void* initialize_buckets() {
   return mmap(NULL,
-              PAGE_SIZE,  // TODO?sizeof(bucket*) * POSSIBLE_BLOCK_SIZES_LEN
-              PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, 0, 0);
+                 PAGE_SIZE,  // TODO?sizeof(bucket*) * POSSIBLE_BLOCK_SIZES_LEN
+                 PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, 0, 0);
 }
 
 void initialize_arenas() {
-  arenas = mmap(NULL, NUM_ARENAS * sizeof(bucket**), PROT_READ | PROT_WRITE,
-                MAP_ANONYMOUS | MAP_PRIVATE, 0, 0);
-
+  arenas = mmap(NULL, NUM_ARENAS*sizeof(bucket**), PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, 0,0);
+  
   pthread_mutex_lock(&lock);
-  for (int ii = 0; ii < NUM_ARENAS; ii++) {
+  for(int ii = 0; ii < NUM_ARENAS; ii++) {
     arenas[ii].buckets = (bucket**)initialize_buckets();
   }
   pthread_mutex_unlock(&lock);
 }
 
-static size_t div_up(size_t xx, size_t yy) {
-  // This is useful to calculate # of pages
-  // for large allocations.
-  size_t zz = xx / yy;
+static
+size_t
+div_up(size_t xx, size_t yy)
+{
+    // This is useful to calculate # of pages
+    // for large allocations.
+    size_t zz = xx / yy;
 
-  if (zz * yy == xx) {
-    return zz;
-  } else {
-    return zz + 1;
-  }
+    if (zz * yy == xx) {
+        return zz;
+    }
+    else {
+        return zz + 1;
+    }
 }
 
 long block_size_at_index(long index) {
@@ -142,11 +147,13 @@ bucket* get_new_bucket(size_t block_size, bucket* prev, bucket* next) {
   return newBucket;
 }
 
-int get_bit(uint32_t block, int k) { return (block & (1 << k)) >> k; }
+int get_bit(uint32_t block, int k) {
+  return (block & (1 << k)) >> k;
+}
 
 void* get_block(bucket* bb) {
-  long numBlocks =
-      (bb->bucket_size - sizeof(bucket) - BYTEMAP_SIZE) / bb->block_size;
+  long numBlocks = (bb->bucket_size - sizeof(bucket) - BYTEMAP_SIZE) / bb->block_size;
+  assert(numBlocks > 0);
 
   // There are two loops, an outer and an inner. The outer loop increments by
   // the size of an unsigned 32 bit integer multiplied by the number of bits in
@@ -172,9 +179,7 @@ void* get_block(bucket* bb) {
       // For each jj, we get value of the bit in our integer and see if it's
       // free.
       if (get_bit(*(uint32_t*)bytePointer, jj) == 0) {
-        *(uint32_t*)bytePointer =
-            *(uint32_t*)bytePointer |
-            flag;  // Sets the flag at the jj position of our blockpointer to 1
+        *(uint32_t*)bytePointer = *(uint32_t*)bytePointer | flag;  // Sets the flag at the jj position of our blockpointer to 1
         return (void*)bb + sizeof(bucket) + BYTEMAP_SIZE +
                ((ii + jj) * bb->block_size);  // this should HOPEFULLY return
                                               // the correct memory address
@@ -198,11 +203,13 @@ void* get_block(bucket* bb) {
 }
 
 void* xmalloc(size_t bytes) {
-  if (bytes > 3072) {
+
+  if(bytes > 3072) {
     long pages_needed = div_up(bytes, PAGE_SIZE);
     return mmap(NULL, pages_needed * PAGE_SIZE, PROT_READ | PROT_WRITE,
-                MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
-  } else {
+      MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
+  }
+  else {
     if (arenas == NULL) {
       initialize_arenas();
     }
@@ -210,19 +217,19 @@ void* xmalloc(size_t bytes) {
     //   initialize_buckets();
     // }
 
-    // This is the index in the arena and buckets array that our free memory
-    // should be at ALSO locks
+    // This is the index in the arena and buckets array that our free memory should be at
+    // ALSO locks
     long arena_id = get_arena_id();
     long index = bucket_index(bytes);
     size_t block_size = block_size_at_index(index);
 
     bucket** buckets = arenas[arena_id].buckets;
     assert(buckets != NULL);
-
+    
     if (buckets[index] == NULL)  // see if magic number is there or not?
     {
       // getnewbucket inits a new bucket
-      buckets[index] = get_new_bucket(block_size, NULL, NULL);
+        buckets[index] = get_new_bucket(block_size, NULL, NULL);
     }
 
     void* block = get_block(buckets[index]);
@@ -234,12 +241,12 @@ void* xmalloc(size_t bytes) {
 
 void xfree(void* ptr) {
   uint64_t address = (uint64_t)ptr;
-  void* pageStart = (void*)(address - (address % PAGE_SIZE));
+  void* pageStart = (void*) (address - (address % PAGE_SIZE));
 
   assert(*(long*)pageStart != 0);
   // If we cast it to a long, does it have that magic number?
   while (*(long*)pageStart != MAGIC_NUMBER) {
-    assert(*(long*)pageStart != 0);
+      assert(*(long*)pageStart != 0);
     pageStart -= PAGE_SIZE;
   }
 
@@ -262,9 +269,12 @@ void xfree(void* ptr) {
   // This gives us the exact bit offset within a 32 bit unsigned integer that
   // our block is located
   int internalOffset = 0;
-  if (bitmapAddressOffset == 0) {
+  if (bitmapAddressOffset == 0)
+  {
     internalOffset = blockNo;
-  } else {
+  }
+  else
+  {
     internalOffset = blockNo % (bitmapAddressOffset * 8 * sizeof(uint32_t));
   }
 
@@ -317,18 +327,19 @@ void xfree(void* ptr) {
 void* xrealloc(void* prev, size_t bytes) {
   // TODO: write an optimized realloc
   uint64_t address = (uint64_t)prev;
-  void* pageStart = (void*)(address - (address % PAGE_SIZE));
+  void* pageStart = (void*) (address - (address % PAGE_SIZE));
 
   assert(*(long*)pageStart != 0);
 
   // If we cast it to a long, does it have that magic number?
   while (*(long*)pageStart != MAGIC_NUMBER) {
-    assert(*(long*)pageStart != 0);
+      assert(*(long*)pageStart != 0);
     pageStart -= PAGE_SIZE;
   }
 
   // Pointer arithmetic to free it in our bytemap
   bucket* bb = (bucket*)pageStart;
+
 
   void* new_ptr = xmalloc(bytes);
 
