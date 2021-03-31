@@ -22,8 +22,10 @@ typedef struct bucket {
 
 typedef struct arena {
   bucket** buckets;
-  int used;
+  pthread_mutex_t lock;
 } arena;
+
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
 static arena* arenas;
 static const size_t PAGE_SIZE = 4096;
@@ -40,19 +42,12 @@ static const long POSSIBLE_BLOCK_SIZES[] = {4,   8,   16,   24,   32,   48,
                                             512, 768, 1024, 1536, 2048, 3072};
 
 
-void unlock_arena(int arena_id) {
-  ARENA_ID = -1;
-  arenas[arena_id].used = 0;
-}
-
 long get_arena_id() {
-  if(ARENA_ID == -1 || arenas[ARENA_ID].used ) {
+  if(ARENA_ID == -1 || pthread_mutex_trylock(&(arenas[ARENA_ID].lock)) != 0) {
     //find an open arena 
     for(int ii = 0; ii < NUM_ARENAS; ii++) {
-      arena* curr_arena = &arenas[ii];
-      if(curr_arena->used == 0) {
+      if(pthread_mutex_trylock(&(arenas[ii].lock)) == 0) {
         ARENA_ID = ii;
-        curr_arena->used = 1;
         return ARENA_ID;
       }
     }
@@ -69,9 +64,11 @@ void* initialize_buckets() {
 void initialize_arenas() {
   arenas = mmap(NULL, NUM_ARENAS*sizeof(bucket**), PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, 0,0);
   
+  pthread_mutex_lock(&lock);
   for(int ii = 0; ii < NUM_ARENAS; ii++) {
     arenas[ii].buckets = (bucket**)initialize_buckets();
   }
+  pthread_mutex_unlock(&lock);
 }
 
 static
@@ -218,6 +215,7 @@ void* xmalloc(size_t bytes) {
     // }
 
     // This is the index in the arena and buckets array that our free memory should be at
+    // ALSO locks
     long arena_id = get_arena_id();
     long index = bucket_index(bytes);
     size_t block_size = block_size_at_index(index);
@@ -233,7 +231,7 @@ void* xmalloc(size_t bytes) {
 
     void* block = get_block(buckets[index]);
 
-    unlock_arena(arena_id);
+    pthread_mutex_unlock(&(arenas[arena_id].lock));
     return block;
   }
 }
