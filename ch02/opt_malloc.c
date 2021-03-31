@@ -8,6 +8,9 @@
 
 #include "xmalloc.h"
 
+#pragma GCC push_options
+#pragma GCC optimize ("O0")
+
 static const long MAGIC_NUMBER = 720720720817817817;
 
 typedef struct bucket {
@@ -144,7 +147,10 @@ bucket* get_new_bucket(size_t block_size, bucket* prev, bucket* next) {
   return newBucket;
 }
 
-int get_bit(uint32_t block, int k) { return (block & (1 << k)) >> k; }
+int get_bit(uint32_t block, int k) {
+  k = k-1;
+  return (block & (1 << k)) >> k;
+}
 
 void* get_block(bucket* bb) {
   long numBlocks =
@@ -174,9 +180,7 @@ void* get_block(bucket* bb) {
       // For each jj, we get value of the bit in our integer and see if it's
       // free.
       if (get_bit(*(uint32_t*)bytePointer, jj) == 0) {
-        *(uint32_t*)bytePointer =
-            jj |
-            flag;  // Sets the flag at the jj position of our blockpointer to 1
+        *(uint32_t*)bytePointer = jj | flag;  // Sets the flag at the jj position of our blockpointer to 1
         return (void*)bb + sizeof(bucket) + BYTEMAP_SIZE +
                ((ii + jj) * bb->block_size);  // this should HOPEFULLY return
                                               // the correct memory address
@@ -339,3 +343,5 @@ void* xrealloc(void* prev, size_t bytes) {
 
   return new_ptr;
 }
+
+#pragma GCC pop_options
