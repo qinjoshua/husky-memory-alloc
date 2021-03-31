@@ -263,7 +263,15 @@ void xfree(void* ptr) {
 
   // This gives us the exact bit offset within a 32 bit unsigned integer that
   // our block is located
-  int internalOffset = blockNo % (bitmapAddressOffset * 8 * sizeof(uint32_t));
+  int internalOffset = 0;
+  if (bitmapAddressOffset == 0)
+  {
+    internalOffset = blockNo;
+  }
+  else
+  {
+    internalOffset = blockNo % (bitmapAddressOffset * 8 * sizeof(uint32_t));
+  }
 
   uint32_t flag = 1 << internalOffset;
   *(uint32_t*)bitmapAddress = *(uint32_t*)bitmapAddress ^ flag;
