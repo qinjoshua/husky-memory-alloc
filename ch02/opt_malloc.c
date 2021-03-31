@@ -124,7 +124,7 @@ bucket* get_new_bucket(size_t block_size, bucket* prev, bucket* next) {
   bucket* newBucket =
       mmap(NULL,
            bucketSize,  // shouldnt this be bucket size
-           PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, 0, 0);
+           PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, 0, 0);
 
   newBucket->magic_number = MAGIC_NUMBER;
   newBucket->block_size = block_size;
