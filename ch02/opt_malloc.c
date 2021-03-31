@@ -148,7 +148,6 @@ bucket* get_new_bucket(size_t block_size, bucket* prev, bucket* next) {
 }
 
 int get_bit(uint32_t block, int k) {
-  k = k-1;
   return (block & (1 << k)) >> k;
 }
 
@@ -180,7 +179,7 @@ void* get_block(bucket* bb) {
       // For each jj, we get value of the bit in our integer and see if it's
       // free.
       if (get_bit(*(uint32_t*)bytePointer, jj) == 0) {
-        *(uint32_t*)bytePointer = jj | flag;  // Sets the flag at the jj position of our blockpointer to 1
+        *(uint32_t*)bytePointer = *(uint32_t*)bytePointer | flag;  // Sets the flag at the jj position of our blockpointer to 1
         return (void*)bb + sizeof(bucket) + BYTEMAP_SIZE +
                ((ii + jj) * bb->block_size);  // this should HOPEFULLY return
                                               // the correct memory address
