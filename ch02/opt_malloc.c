@@ -65,7 +65,7 @@ void* initialize_buckets() {
 }
 
 void initialize_arenas() {
-  arenas = mmap(NULL, NUM_ARENAS*sizeof(bucket**), PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, 0,0);
+  arenas = mmap(NULL, NUM_ARENAS*sizeof(bucket**), PROT_READ|PROT_WRITE, MAP_ANON | MAP_SHARED, 0,0);
   
   pthread_mutex_lock(&lock);
   for(int ii = 0; ii < NUM_ARENAS; ii++) {
